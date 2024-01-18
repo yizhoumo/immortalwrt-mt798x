@@ -1,0 +1,36 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/feeds update -a
+      - run: ./scripts/feeds install -a
+      - run: cp -f defconfig/mt7986-ax6000.config .config
+      - run: make defconfig
+      - run: make download
+      - run: make -j$(nproc)
+      - run: tree bin/targets
+      - uses: actions/upload-artifact@v4
+        with:
+          path: |
+            bin/targets/*/*/*
+            !bin/targets/*/*/packages
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - run: tree
+      - run: echo "RELEASE_DATE=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
+      - uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.RELEASE_DATE }}
+          files: artifact/**
